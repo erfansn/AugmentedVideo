@@ -1,3 +1,18 @@
+/*
+ * Copyright 2023 Erfan Sn
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package ir.erfansn.augmentedvideo
 
 import android.app.Application
@@ -6,16 +21,14 @@ import androidx.lifecycle.*
 import com.google.android.filament.MaterialInstance
 import com.google.ar.core.AugmentedImage
 import com.google.ar.sceneform.rendering.ExternalTexture
-import com.google.ar.sceneform.rendering.ModelRenderable
 import io.github.sceneview.ar.arcore.isTracking
-import io.github.sceneview.ar.node.ArModelNode
 import io.github.sceneview.ar.node.ArNode
 import io.github.sceneview.material.MaterialLoader
 import io.github.sceneview.material.destroy
 import io.github.sceneview.material.setExternalTexture
-import io.github.sceneview.model.GLTFLoader
-import io.github.sceneview.model.ModelInstance
-import io.github.sceneview.model.destroy
+import io.github.sceneview.math.Rotation
+import io.github.sceneview.math.Scale
+import io.github.sceneview.model.*
 import io.github.sceneview.node.ModelNode
 import io.github.sceneview.utils.getResourceUri
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,20 +41,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _node = MutableStateFlow<ArNode?>(null)
     val node = _node.asStateFlow()
 
-    private lateinit var materialInstance: MaterialInstance
-    private lateinit var modelInstance: ModelInstance
+    private lateinit var avMaterialInstance: MaterialInstance
+    private lateinit var avModelInstance: ModelInstance
+    private lateinit var externalTexture: ExternalTexture
+    private lateinit var mediaPlayer: MediaPlayer
 
     init {
         viewModelScope.launch {
-            materialInstance = MaterialLoader.loadMaterial(
+            avModelInstance = GLTFLoader.loadModel(
+                context = application,
+                gltfFileLocation = application.getResourceUri(R.raw.av_model),
+            )!!.instance
+            avMaterialInstance = MaterialLoader.loadMaterial(
                 context = application,
                 lifecycle = dummyLifecycle,
                 filamatFileLocation = application.getResourceUri(R.raw.av_material)
             )!!
-            modelInstance = GLTFLoader.loadModel(
-                context = application,
-                gltfFileLocation = application.getResourceUri(R.raw.av_model),
-            )!!.instance
+
+            externalTexture = ExternalTexture(null)
+            avMaterialInstance.setExternalTexture("videoTexture", externalTexture.filamentTexture)
+
+            mediaPlayer = MediaPlayer.create(getApplication(), R.raw.matrix).apply {
+                setSurface(externalTexture.surface)
+                isLooping = true
+            }
         }
     }
 
@@ -52,37 +75,41 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         _node.update {
             ArNode().apply {
-                applyPosePosition = true
+                applyPoseRotation = true
                 anchor = trackedAugmentedImage.let {
                     it.createAnchor(it.centerPose)
                 }
 
-                ModelNode().apply {
-                    val externalTexture = ExternalTexture(null)
-                    materialInstance.setExternalTexture("videoTexture", externalTexture.filamentTexture)
+                modelScale = Scale(
+                    x = trackedAugmentedImage.extentX,
+                    z = trackedAugmentedImage.extentZ
+                )
+                modelRotation = Rotation(x = 180f)
 
-                    setMaterial(materialInstance)
-                    setModelInstance(modelInstance)
+                addChild(ModelNode().apply {
+                    setModelInstance(avModelInstance)
+                    setMaterial(avMaterialInstance)
+                    setReceiveShadows(false)
+                    setCastShadows(false)
 
-                    val mediaPlayer = MediaPlayer.create(getApplication(), R.raw.matrix)
-                    mediaPlayer.setSurface(externalTexture.surface)
-                    mediaPlayer.isLooping = true
                     mediaPlayer.start()
-                }
+                })
             }
         }
     }
 
     override fun onCleared() {
         super.onCleared()
-        materialInstance.destroy()
-        modelInstance.destroy()
+        avMaterialInstance.destroy()
+        avModelInstance.destroy()
         _node.value?.destroy()
+        mediaPlayer.release()
+        externalTexture.destroy()
     }
 }
 
 private val dummyLifecycle = object : Lifecycle() {
+    override val currentState: State = State.INITIALIZED
     override fun addObserver(observer: LifecycleObserver) = Unit
     override fun removeObserver(observer: LifecycleObserver) = Unit
-    override fun getCurrentState() = State.INITIALIZED
 }

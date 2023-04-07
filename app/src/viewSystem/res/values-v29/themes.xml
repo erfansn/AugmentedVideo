@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.TheMoments" parent="Base.Theme.TheMoments">
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+        <item name="android:enforceNavigationBarContrast">false</item>
+        <item name="android:enforceStatusBarContrast">false</item>
+    </style>
+</resources>

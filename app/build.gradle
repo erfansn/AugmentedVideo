@@ -76,5 +76,5 @@ dependencies {
     jetpackComposeDebugImplementation 'androidx.compose.ui:ui-tooling'
     jetpackComposeImplementation 'androidx.activity:activity-compose:1.7.2'
     jetpackComposeImplementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.6.1'
-    jetpackComposeImplementation 'com.google.accompanist:accompanist-systemuicontroller:0.30.1'
+    jetpackComposeImplementation 'com.google.accompanist:accompanist-systemuicontroller:0.36.0'
 }
